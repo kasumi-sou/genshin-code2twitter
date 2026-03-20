@@ -1,0 +1,198 @@
+// エンドポイント
+const X_TWEETS = "https://api.x.com/2/tweets";
+const GENSHIN_CODE = "https://hoyo-codes.seria.moe/codes?game=genshin";
+
+
+function getCode() {
+  const responseCode = UrlFetchApp.fetch(GENSHIN_CODE).getResponseCode();
+  const contentText = UrlFetchApp.fetch(GENSHIN_CODE).getContentText();
+  console.log(responseCode);
+  const recievedCodesObj = JSON.parse(contentText);
+  console.log(recievedCodesObj);
+
+  if (responseCode <= 199 && responseCode >= 300) {
+    return console.error(`error ${responseCode}`);
+  }
+
+  // 受け取ったギフトコードのidを抽出
+
+  const recievedCodeIdsArr = recievedCodesObj.codes.map(e => e.id).toSorted((a, b) => a - b);
+
+
+
+  // 不要なkeyを除外
+  const cachedIds = ScriptProperties.getProperty("ids");
+  // console.log(cachedIds);
+  // console.log(recievedCodeIds.toString())
+
+  if (!cachedIds || cachedIds !== recievedCodeIdsArr.toString()) {
+    const cachedIdsArr = cachedIds.split(",").map(Number);
+    console.log(cachedIdsArr); // キャッシュ済のコード
+    console.log(recievedCodeIdsArr); // 受信したコード
+
+    const setCachedIdsArr = new Set(cachedIdsArr);
+
+    // 受信したコードにのみ含まれるidを抽出
+    const diff = recievedCodeIdsArr.filter(e => !setCachedIdsArr.has(e));
+    console.log(diff);
+
+    if (!diff) {
+      return;
+    }
+
+    // コードが減っていた場合は中断,新idを記録
+    if (cachedIdsArr.length > recievedCodeIdsArr.length) {
+      ScriptProperties.setProperty("ids", recievedCodeIdsArr.toString());
+      return;
+    }
+    
+
+    let newCodesArr = []; // 差分すなわち新規のコード
+
+    diff.forEach(e => {
+      newCodesArr.push(recievedCodesObj.codes.find(code => {
+        return code.id === e;
+      }));
+    });
+
+    console.log(newCodesArr);
+
+    let tweetText = "新着コードが届きました！！🥳\n\n"
+
+    newCodesArr.forEach(e => {
+        const rewards = e.rewards ? e.rewards : "（報酬情報不明）";
+        tweetText += (`https://genshin.hoyoverse.com/ja/gift?code=${e.code}\n報酬: ${rewards}\n`);
+      })
+
+    console.log(tweetText);
+
+    const sortedRecievedCodeIdsArr = recievedCodeIdsArr.toSorted((a, b) => a - b);
+
+    // ScriptProperties.setProperty("ids", sortedRecievedCodeIdsArr.toString());
+
+    return ([tweetText, sortedRecievedCodeIdsArr]);
+  }else {
+    return;
+  }
+}
+
+// ツイート投稿
+function doTweet() {
+  authorizationSetting();
+  const service = getService();
+
+  const infoArr = getCode()
+
+  const textContent = infoArr[0];
+  const sortedRecievedCodeIdsArr = infoArr[1];
+
+  // console.log(textContent);
+  // console.log(sortedRecievedCodeIdsArr);
+  
+  if (!textContent) {
+    return console.log("There was no new code.")
+  };  
+  const res = UrlFetchApp.fetch(X_TWEETS, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + service.getAccessToken(),
+      "Content-Type": "application/json",
+    },
+    payload: JSON.stringify({
+      text: textContent,
+    }),
+    muteHttpExceptions: true,
+  });
+
+  const code = res.getResponseCode();
+  const body = res.getContentText();
+  if (code !== 200 && code !== 201) {
+    throw new Error(`Tweet failed: ${code}\n${body}`);
+  }
+  Logger.log("OK: " + body);
+  ScriptProperties.setProperty("ids", sortedRecievedCodeIdsArr.toString());
+}
+
+// OAuth2 設定
+const CLIENT_ID = PropertiesService.getScriptProperties().getProperty("X_CLIENT_ID");
+const CLIENT_SECRET = PropertiesService.getScriptProperties().getProperty("X_CLIENT_SECRET");
+
+function getService() {
+  pkceChallengeVerifier();
+  const userProps = PropertiesService.getUserProperties();
+  const scriptProps = PropertiesService.getScriptProperties();
+  return OAuth2.createService("twitter")
+    .setAuthorizationBaseUrl("https://twitter.com/i/oauth2/authorize")
+    .setTokenUrl("https://api.twitter.com/2/oauth2/token?code_verifier=" + userProps.getProperty("code_verifier"))
+    .setClientId(CLIENT_ID)
+    .setClientSecret(CLIENT_SECRET)
+    .setCallbackFunction("authCallback")
+    .setPropertyStore(userProps)
+    .setScope("users.read tweet.read tweet.write media.write offline.access")
+    .setParam("response_type", "code")
+    .setParam("code_challenge_method", "S256")
+    .setParam("code_challenge", userProps.getProperty("code_challenge"))
+    .setTokenHeaders({
+      "Authorization": "Basic " + Utilities.base64Encode(CLIENT_ID + ":" + CLIENT_SECRET),
+      "Content-Type": "application/x-www-form-urlencoded",
+    });
+}
+
+function authCallback(request) {
+  const service = getService();
+  const authorized = service.handleCallback(request);
+  if (authorized) {
+    return HtmlService.createHtmlOutput("Success!");
+  }
+  else {
+    return HtmlService.createHtmlOutput("Denied.");
+  }
+}
+
+function pkceChallengeVerifier() {
+  const userProps = PropertiesService.getUserProperties();
+  if (!userProps.getProperty("code_verifier")) {
+    let verifier = "";
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+
+    for (let i = 0; i < 128; i++) {
+      verifier += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+
+    const sha256Hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, verifier);
+
+    const challenge = Utilities.base64Encode(sha256Hash)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    userProps.setProperty("code_verifier", verifier);
+    userProps.setProperty("code_challenge", challenge);
+  }
+}
+
+function logRedirectUri() {
+  const service = getService();
+  Logger.log(service.getRedirectUri());
+}
+
+function authorizationSetting() {
+  const service = getService();
+  if (service.hasAccess()) {
+    Logger.log("Already authorized");
+  }
+  else {
+    const authorizationUrl = service.getAuthorizationUrl();
+    Logger.log("Open the following URL and re-run the script: %s", authorizationUrl);
+  }
+}
+
+// 認証情報リセット
+function resetAuthAll() {
+  const service = getService();
+  service.reset();
+
+  const up = PropertiesService.getUserProperties();
+  up.deleteProperty("code_verifier");
+  up.deleteProperty("code_challenge");
+  Logger.log("Reset done.");
+}
