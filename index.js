@@ -83,15 +83,16 @@ function doTweet() {
 
   const infoArr = getCode()
 
+  if (!textContent) {
+    return console.log("There was no new code.")
+  };  
+
   const textContent = infoArr[0];
   const sortedRecievedCodeIdsArr = infoArr[1];
 
   // console.log(textContent);
   // console.log(sortedRecievedCodeIdsArr);
   
-  if (!textContent) {
-    return console.log("There was no new code.")
-  };  
   const res = UrlFetchApp.fetch(X_TWEETS, {
     method: "POST",
     headers: {
