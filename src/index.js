@@ -83,7 +83,7 @@ function doTweet() {
 
   const infoArr = getCode()
 
-  if (!textContent) {
+  if (!infoArr) {
     return console.log("There was no new code.")
   };  
 
