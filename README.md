@@ -2,7 +2,7 @@
 
 A bot that tweets when a code is generated.
 
-# Useage
+# Usage
 
 1. Copy and paste from `index.js` into GoogleAppScript.
 1. Configure `X_CLIENT_ID` and `X_CLIENT_SECRET` from X API.
