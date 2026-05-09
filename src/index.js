@@ -64,6 +64,29 @@ function getCode() {
         tweetText += (`https://genshin.hoyoverse.com/ja/gift?code=${e.code}\n報酬: ${rewards}\n`);
       })
 
+    const map = {
+      ";" : ", ",
+      "and" : ",",
+      "*" : " x",
+      "mora" : "モラ",
+      "primogems" : "原石",
+      "Primogem" : "原石",
+      "Hero's Wit" : "大英雄の経験",
+      "Adventurer's Experience" : "冒険家の経験",
+      "mystic enhancement ore" : "仕上げ用魔鉱",
+      "Fine Enhancement Ore" : "仕上げ用良鉱",
+      "Geode of Replication" : "再現群晶"
+    }
+
+    const regex = new RegExp(
+      Object.keys(map)
+        .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("|"),
+      "gi"
+    );
+
+    tweetText = tweetText.replace(regex, (e) => map[e]);
+
     console.log(tweetText);
 
     const sortedRecievedCodeIdsArr = recievedCodeIdsArr.toSorted((a, b) => a - b);
