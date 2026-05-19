@@ -70,12 +70,12 @@ function getCode() {
       "*" : " x",
       "mora" : "モラ",
       "primogems" : "原石",
-      "Primogem" : "原石",
-      "Hero's Wit" : "大英雄の経験",
-      "Adventurer's Experience" : "冒険家の経験",
+      "primogem" : "原石",
+      "hero's wit" : "大英雄の経験",
+      "adventurer's experience" : "冒険家の経験",
       "mystic enhancement ore" : "仕上げ用魔鉱",
-      "Fine Enhancement Ore" : "仕上げ用良鉱",
-      "Geode of Replication" : "再現群晶"
+      "fine enhancement ore" : "仕上げ用良鉱",
+      "geode of replication" : "再現群晶"
     }
 
     const regex = new RegExp(
@@ -85,7 +85,7 @@ function getCode() {
       "gi"
     );
 
-    tweetText = tweetText.replace(regex, (e) => map[e]);
+    tweetText = tweetText.replace(regex, (e) => map[e.toLowerCase()]);
 
     console.log(tweetText);
 
